@@ -24,118 +24,133 @@ const USERS = [
 
 // read
 export const getAllUser = async (req, res) => {
-    try {
-        const [rows] = await pool.query("SELECT id, name, is_active FROM users");
-        return res.status(200).json({
-            status: true,
-            message: "Fetch user success",
-            total: rows.length,
-            data: rows,
-        });      
-    } catch (error) {
-        return res.status(500).json({
-            status: false,
-            message: "Fail fetch user",
-            error: error.message,
-        });         
-    }
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, name, email,    is_active FROM users",
+    );
+    return res.status(200).json({
+      status: true,
+      message: "Fetch user success",
+      total: rows.length,
+      data: rows,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: "Fail fetch user",
+      error: error.message,
+    });
+  }
 };
 
 export const getUserById = async (req, res) => {
-try {
+  try {
     const id = parseInt(req.params.id);
     // find = mencari id atau code lain
-    const [user] = await pool.query("SELECT id, name, is_active FROM users WHERE id= ?", [id]);
-    if(!user[0]){
-        res.status(404).json({
-            status: false,
-            message: "User not found",
-        });
+    const [user] = await pool.query(
+      "SELECT id, name, is_active FROM users WHERE id= ?",
+      [id],
+    );
+    if (!user[0]) {
+      res.status(404).json({
+        status: false,
+        message: "User not found",
+      });
     }
 
-     res.status(200).json({
-            status: true,
-            message: "User found",
-            data: user,
+    res.status(200).json({
+      status: true,
+      message: "User found",
+      data: user,
     });
-} catch (error) {
+  } catch (error) {
     return res.status(500).json({
-            status: false,
-            message: "Fail fetch user",
-            error: error.message,
-        });         
-    }
+      status: false,
+      message: "Fail fetch user",
+      error: error.message,
+    });
+  }
 };
-export const createUser = async(req, res) => {
-const { name, email, password } = req.body;
-// const name = req.body.name;
-// const password = req.body.password;
-try {
- const[user] = await pool.query("INSERT INTO users(name,email,password) VALUES (?,?,?)", [name, email, password]);
- 
- 
- return res.status(201).json({
-     status: true,
-     message: "Create user success",
-     data: {id: user.insertId, name, email},
+export const createUser = async (req, res) => {
+  const { name, email, password } = req.body;
+  // const name = req.body.name;
+  // const password = req.body.password;
+  try {
+    const [user] = await pool.query(
+      "INSERT INTO users(name,email,password) VALUES (?,?,?)",
+      [name, email, password],
+    );
+
+    return res.status(201).json({
+      status: true,
+      message: "Create user success",
+      data: { id: user.insertId, name, email },
     });
-} catch (error) {
+  } catch (error) {
     return res.status(500).json({
-        status: false,
-        message: "Create user failed",
-        error: error.message
+      status: false,
+      message: "Create user failed",
+      error: error.message,
     });
-}
+  }
 };
 
 export const updateUser = async (req, res) => {
+  try {
     const id = parseInt(req.params.id);
-    const {name, email, password} = req.body;
-    const[user] = await pool.query
-    ("UPDATE users SET name=?, email=?, password=? WHERE id=?", 
-    [name, email, password, id]);
+    const { name, email, password } = req.body;
 
-    const userIndex = USERS.find((u) => u.id === id);
-    USERS[userIndex] = {
-        ...USERS[userIndex],
-        ...(name && {name}),
-        ...(email && {email}),
-        ...(password && {password}),
+    if (!password) {
+      const [user] = await pool.query(
+        "UPDATE users SET name=?, email=?, password=? WHERE id=?",
+        [name, email, id],
+      );
+    } else {
+      const [user] = await pool.query(
+        "UPDATE users SET name=?, email=?, password=? WHERE id=?",
+        [name, email, password, id],
+      );
     }
-
     return res.status(200).json({
-        status: true,
-        message: 'Update user success',
-        data: USERS[userIndex]
+      status: true,
+      message: "Update user success",
+      data: USERS,
     });
-    // name yg pertama biru itu punya users, kalo name yg di dalem itu dari PILOT (data yg di input di depan). PILOT cuma bisa di POST.
-    // user mana dari index yang mau di ambil, user artinya data yg muncul.
-    // find = mencari data atau id
-}
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: error.message,
+    });
+  }
+
+  // name yg pertama biru itu punya users, kalo name yg di dalem itu dari payload (data yg di input di depan). PILOT cuma bisa di POST.
+  // user mana dari index yang mau di ambil, user artinya data yg muncul.
+  // find = mencari data atau id
+};
 
 export const deleteUser = async (req, res) => {
-    try {
+  try {
     const id = parseInt(req.params.id);
 
-    const [user] = await pool.query ("UPDATE FROM users WHERE id=?", [id]);
+    const [user] = await pool.query("DELETE FROM users WHERE id=?", [id]);
+
     if (!user) {
-        return res.status(404).json({
-            status: false,
-            message: "not found",
-        });
+      res.status(404).json({
+        status: false,
+        message: "Delete fails",
+      });
+    } else {
+      res.status(200).json({
+        status: true,
+        message: "Delete is success",
+      });
     }
-    
-        res.status(200).json({
-            status: true,
-            message: "Delete issuccess",
-        });
-    } catch (error) {
-        return res.status(500).json({
-            status: false,
-            message: error.message,
-        });
-    }
-    
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: error.message,
+    });
+  }
 };
 
 
