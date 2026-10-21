@@ -11,58 +11,76 @@ export const createTransaction = async (req, res) => {
       
       const {order_number, user_id, payment_method, subtotal, tax, total, items = [], pay = 0 } = req.body;
       
-      // const userId = req.user?.id; 
-      
+      const userId = req.user?.id;
+
+      const orderNumber = await generateOrderNumber(connection);
+      console.log("order number", orderNumber);
+      console.log(req.user);
       await connection.beginTransaction();
-        const orderNumber = await generateOrderNumber(connection);
-        // console.log("order number", orderNumber);
 
-        const isMidtrans = String (payment_method) === "1" || payment_method === "midtrans";
-        let change = 0;
-        let cashReceive = 0;
-        let status = "pending";
-        
-        if(payment_method === 2){
-          cashReceive = Number(pay);
-          if(cashReceive < Number(total)){
-            await connection.rollback();
-            return res.status(400).json({
-              status: false,
-              message: "Cash less then the total",
-            });
-          }
-          change = cashReceive - Number(total);
-          status = "settlement"; 
+      // const isMidtrans =
+      //   String(payment_method) === "1" || payment_method === "midtrans";
+      let change = 0;
+      let cashReceive = 0;
+      let status = "pending";
+
+      if (payment_method === 2) {
+        cashReceive = Number(pay);
+        if (cashReceive < Number(total)) {
+          await connection.rollback();
+          return res.status(400).json({
+            status: false,
+            message: "Cash less then the total",
+          });
         }
+        change = cashReceive - Number(total);
+        status = "settlement";
+      }
 
+      const [transaction] = await pool.query(
+        "INSERT INTO orders (order_number, user_id, payment_method, subtotal, tax, total, pay, status) VALUES (?,?,?,?,?,?,?,?)",
+        [
+          orderNumber,
+          userId,
+          payment_method,
+          subtotal,
+          tax,
+          total,
+          pay,
+          status,
+        ],
+      );
 
-        const [transaction] = await pool.query("INSERT INTO orders (order_number, user_id, payment_method, subtotal, tax, total, pay, status) VALUES (?,?,?,?,?,?,?,?)", [orderNumber, user_id, payment_method, subtotal, tax, total, pay, status]);
-
-        const orderId = transaction.insertId;
-        if (items) {
-            for(let item of items){
-                await pool.query("INSERT INTO order_details (order_id, product_id, qty, price) VALUES (?,?,?,?)",[orderId, item.product_id, item.qty, item.price]);
-            }
+      const orderId = transaction.insertId;
+      if (items) {
+        for (let item of items) {
+          await pool.query(
+            "INSERT INTO order_details (order_id, product_id, qty, price) VALUES (?,?,?,?)",
+            [orderId, item.product_id, item.qty, item.price],
+          );
         }
-        let midtransResponse = null;
-        
-        if (Number(payment_method) === 1) {
-            const parameter = {
-                transaction_details: {
-                    order_id: order_number,
-                    gross_amount: total,
-                },
-                enable_payment: ["gopay"],
-                item_details: items.map((item) => ({
-                    id: item.product_id,
-                    price: item.price,
-                    quantity: item.qty,
-                    name: `Product ID ${item.product_id}`,
-                })),
-            };
-            
-            midtransResponse = await snap.createTransaction(parameter);
-        }
+      }
+      let midtransResponse = null;
+      if (Number(payment_method) === 1) {
+        const parameter = {
+          transaction_details: {
+            order_id: order_number,
+            gross_amount: subtotal,
+          },
+          callbacks: {
+            finish: "http://localhost:5173/transaction/print",
+          },
+          enable_payment: ["gopay"],
+          item_details: items.map((item) => ({
+            id: item.product_id,
+            price: item.price,
+            quantity: item.qty,
+            name: `Product ID ${item.product_id}`,
+          })),
+        };
+
+        midtransResponse = await snap.createTransaction(parameter);
+      }
         await connection.commit();
         connection.release();
          return res.status(201).json({

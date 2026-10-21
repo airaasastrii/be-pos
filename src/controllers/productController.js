@@ -1,21 +1,21 @@
 import pool from "../config/db.js";
 
 // get all
-export const getAllProducts = async (req, res) => {
+export const getAllProducts = async(req, res)=> {
     try {
-        const [products] = await pool.query("SELECT products.*, categories.name AS category_name FROM products LEFT JOIN categories ON products.category_id = categories.id");
+        const [products] = await pool.query("SELECT products.*, categories.name AS category_name FROM products LEFT JOIN categories ON products.category_id=categories.id");
         return res.status(200).json({
-            status: true,
-            total: products.length,
-            data: products,
-        });       
+          status: true,
+          total: products.length,
+          data: products,
+        });
     } catch (error) {
-         return res.status(500).json({
+        return res.status(500).json({
             status: false,
-            message: error.message,
-        });       
+            message: error.message
+        })
     }
-};
+}
 // get one data
 export const getOneProducts = async (req, res) => {
     try {
