@@ -13,11 +13,11 @@ export const createTransaction = async (req, res) => {
       
       const userId = req.user?.id;
 
-      const orderNumber = await generateOrderNumber(connection);
-      console.log("order number", orderNumber);
-      console.log(req.user);
       await connection.beginTransaction();
-
+      // const orderNumber = await generateOrderNumber(connection) || order_number;
+      // console.log("order number", orderNumber);
+      // console.log(req.user);
+      const isMidtrans = String(payment_method) === "1" || payment_method === "midtrans";
       // const isMidtrans =
       //   String(payment_method) === "1" || payment_method === "midtrans";
       let change = 0;
@@ -159,13 +159,74 @@ export const getAllTransaction = async (req, res) => {
   }
 };
 
+export const getTransactionById = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+      const [rows] = await pool.query(`SELECT
+          orders.*,
+          order_details.product_id,
+          order_details.qty,
+          order_details.price,
+          products.name
+          FROM orders
+          LEFT JOIN order_details ON orders.id = order_details.order_id
+          LEFT JOIN products ON order_details.product_id = products.id 
+          WHERE orders.order_number = ?`, [id]);
+
+          if(rows.length === 0){
+            return res.status(404).json({
+              status: false,
+              message: "Data Transaction not found",
+            })
+          }
+
+          const transaction = {
+            id: rows[0].id,
+            order_number: rows[0].order_number,
+            user_id: rows[0].user_id,
+            payment_method: rows[0].payment_method,
+            subtotal: rows[0].subtotal,
+            total: rows[0].total,
+            tax: rows[0].tax,
+            pay: rows[0].pay,
+            status: rows[0].status,
+            items: [],
+          }
+
+          rows.forEach((row) => {
+
+        if (row.product_id) {
+          transaction.items.push({
+            product_id: row.product_id,
+            name: row.name,
+            qty: row.qty,
+            price: row.price
+          });
+        }
+      });
+
+      // const orders = Object.values(orderMap);
+      return res.status(200).json({
+        status: true,
+        message: "Fetch data transaction success",
+        data: transaction,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: false,
+        message: error.message,
+      });
+    }
+
+}
+
 const generateOrderNumber = async (connection) => {
 // setelah async itu namanya parameter yg di dalam ().
   // TR-19102026-001 
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth();
-  const date = now.getDate();
+  const month = String (now.getMonth() +1).padStart(2, "0");
+  const date = String (now.getDate()).padStart(2, "0");
   const prefix = `TR-${year}${month}${date}-`;
 
 // query untuk melihat atau pilih dari data orders
@@ -175,7 +236,7 @@ const [lastOrder] = await connection.query("SELECT order_number FROM orders WHER
 // lastOrder akan mengahasilkan output data lalu nilai dari lasOrder terus nanti ada object lagi. 
 // supaya nanti hasilnya ke orderNumber kita pakein tanda [] di lasOrder const nya
 
-const nextNumber = 1;
+let nextNumber = 1;
 if (lastOrder.length > 0){
   const lastNumber = lastOrder[0].order_number;
   const currentNumber = parseInt(lastNumber.split("-")[2], 10);
